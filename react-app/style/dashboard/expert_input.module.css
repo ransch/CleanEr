@@ -1,0 +1,24 @@
+.table {
+    margin: 0 auto;
+    table-layout: fixed;
+}
+
+.experts_panel {
+    background-color: #ffe4c4;
+}
+
+.instructions {
+    margin: 0 auto;
+}
+
+.input_buttons {
+    display: block;
+}
+
+.step_source_container {
+    font-size: 0.95em;
+}
+
+.step_source {
+    text-decoration: underline;
+}

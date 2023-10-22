@@ -1,0 +1,29 @@
+.table {
+    margin: 0 auto;
+    table-layout: fixed;
+}
+
+.table tbody tr {
+    cursor: pointer;
+}
+
+.table tbody tr td:nth-last-child(2),
+.table thead tr:first-of-type th:nth-last-child(2),
+.table thead tr:last-of-type th:last-of-type {
+    border-right: 2px solid rgb(33, 37, 41);
+}
+
+.sorted_column:hover {
+    background-color: #00000013;
+    cursor: pointer;
+}
+
+.sorted_icon {
+    font-size: 1.5em;
+}
+
+.show_incorrect {
+    display: block;
+    margin: 0 auto;
+    border-radius: 0 0 8px 8px;
+}
