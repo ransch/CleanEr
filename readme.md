@@ -5,7 +5,8 @@ top of existing data cleaning systems and that assists users in identifying the 
 cleaning errors on query results, and in deciding accordingly whether and how to proceed with the
 cleaning.
 
-You can find screenshots of the different views under `screenshots/`.
+You can find screenshots of the different views under `screenshots/`, and watch [a video](demonstration_video.mp4) that demonstrates
+our framework and its key features.
 
 # Instructions
 
