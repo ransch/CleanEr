@@ -6,21 +6,17 @@ import {ResultsTable} from './results_table';
 import {DummyCleaner} from "/src/dummy_cleaner";
 import {
     fetch_mes_score,
-    LOADING_SPINNER,
-    NODE_APP_API_INPUT_TABLES,
-    NODE_APP_API_QUERY_RESULTS
+    FLASK_APP_API_CLEANED_DB,
+    FLASK_APP_API_QUERY_RESULTS,
+    LOADING_SPINNER
 } from "/app/{utils}/utils";
-import {
-    extract_vars_from_tuples,
-    var_to_tuple,
-    mes_reaching_algorithm_step,
-} from "/src/utils";
-import {QUERY_INPUT_ID, PROB_INPUT_ID} from '/app/user_input';
+import {extract_vars_from_tuples, mes_reaching_algorithm_step, var_to_tuple,} from "/src/utils";
+import {DB_NAME_ID, PROB_INPUT_ID, QUERY_INPUT_ID} from '/app/user_input';
 import {OUTPUT_TUPLE_DETAILS_ID, OutputTupleDetails} from "./output_tuple_details";
 import {IMPROVE_INPUT_TUPLE_PROB_ID, ImproveInputTupleProb} from "./improve_input_tuple_prob";
 import {REACH_MES_SCORE_MODAL_ID, ReachMesScoreModal} from "./reach_mes_score_modal";
 import {useSearchParams} from 'next/navigation';
-import {useState, useEffect, useRef} from 'react'
+import {useEffect, useRef, useState} from 'react';
 
 // The modal that presents details about an output tuple.
 let output_tuple_details_modal = null;
@@ -33,8 +29,6 @@ let reach_mes_score_modal = null;
  * @brief This is the main page of the application. It displays the dashboard.
  */
 export default function Page() {
-    // The input tables.
-    const [input_tables, setInputTables] = useState(null);
     // The tuples in the results table.
     const [query_results, setQueryResults] = useState(null);
     // The underlying cleaner.
@@ -63,10 +57,12 @@ export default function Page() {
     const [is_input_tuple_classified, setIsInputTupleClassified] = useState(false);
     // The currently cleaned tuple.
     const [currently_cleaned_tuple, setCurrentlyCleanedTuple] = useState(null);
-    // The output tuple whose MES value is improved by the (currently running) algorithm.
-    const [mes_reaching_output_tuple, setMesReachingOutputTuple] = useState(null);
+    // The output tuples whose MES values are improved by the (currently running) algorithm.
+    const [mes_reaching_output_tuples, setMesReachingOutputTuples] = useState(null);
     // The desired MES value.
     const [mes_reaching_desired_score, setMesReachingDesiredScore] = useState(0);
+    // The maximal cost.
+    const [mes_reaching_remaining_cost, setMesReachingRemainingCost] = useState(Number.POSITIVE_INFINITY);
     // The variables to improve.
     const [mes_reaching_variables_to_improve, setMesReachingVariablesToImprove] = useState([]);
     // Is the MES reaching algorithm running.
@@ -77,6 +73,8 @@ export default function Page() {
     const [classifications_count, setClassificationsCount] = useState(0);
     // Whether the current cleaning step has been requested by the underlying
     const [is_underlying_system, setIsUnderlyingSystem] = useState(true);
+    // The list of selected output tuples.
+    const [selected_output_tuples, setSelectedOutputTuples] = useState([]);
 
     /**
      * @brief A callback that is called when the user clicks on an output tuple.
@@ -112,21 +110,6 @@ export default function Page() {
         improve_input_tuple_prob_modal.show();
     }
 
-    // Fetch the input tables.
-    useEffect(() => {
-        const data_fetch = async () => {
-            let api_res = await fetch(NODE_APP_API_INPUT_TABLES);
-            if (!api_res.ok) {
-                throw new Error('Failed to fetch input tables');
-            }
-            const api_res_json = await api_res.json();
-
-            setInputTables(api_res_json);
-        }
-
-        data_fetch();
-    }, [/*no dependencies*/]);
-
     function on_cleaning_finish() {
         setPreviousCorrectTuples(correct_tuples);
         setPreviousIncorrectTuples(incorrect_tuples);
@@ -145,7 +128,7 @@ export default function Page() {
             } else {
                 const next_var = cleaner.current.get_next_var_to_clean();
                 setCurrentlyCleanedVar(next_var);
-                setCurrentlyCleanedTuple(var_to_tuple(next_var, input_tables)[1]);
+                setCurrentlyCleanedTuple(var_to_tuple(next_var, db_name)[1]);
                 setIsUnderlyingSystem(true);
             }
 
@@ -154,9 +137,10 @@ export default function Page() {
 
         // The MES reaching algorithm is running.
         if (mes_reaching_variables_to_improve.length > 0) {
+            // We don't need to update the remaining cost since it has been updated when calculating
+            // the set of variables to improve.
             setCurrentlyCleanedVar(mes_reaching_variables_to_improve[0]);
-            setCurrentlyCleanedTuple(var_to_tuple(mes_reaching_variables_to_improve[0],
-                input_tables)[1]);
+            setCurrentlyCleanedTuple(var_to_tuple(mes_reaching_variables_to_improve[0], db_name)[1]);
             setMesReachingVariablesToImprove(mes_reaching_variables_to_improve.slice(1));
             return;
         }
@@ -167,46 +151,90 @@ export default function Page() {
             // The truth values can't be determined, so run the underlying cleaner.
             const next_var = cleaner.current.get_next_var_to_clean();
             setCurrentlyCleanedVar(next_var);
-            setCurrentlyCleanedTuple(var_to_tuple(next_var, input_tables)[1]);
+            setCurrentlyCleanedTuple(var_to_tuple(next_var, db_name)[1]);
             setIsUnderlyingSystem(true);
+            // For simplicity, we don't limit the cost of the underlying cleaner.
+            setMesReachingRemainingCost(mes_reaching_remaining_cost - 1);
+            console.log(`Updating the remaining cost from ${mes_reaching_remaining_cost} to ${mes_reaching_remaining_cost - 1}`)
             return;
         }
 
         // The truth values can be determined. Check the MES value and determine if more iterations
         // should be run.
         setMesReachingIsFetchingScore(true);
-        fetch_mes_score(mes_reaching_output_tuple,
-            cleaner.current.get_vars_truth_values(), input_probs).then((new_score) => {
-            setMesReachingIsFetchingScore(false);
-            if (new_score <= mes_reaching_desired_score) {
-                on_cleaning_finish();
-                return;
-            }
+        Promise.all(mes_reaching_output_tuples.map(t =>
+            fetch_mes_score(t, cleaner.current.get_vars_truth_values(), input_probs))).then(
+            (new_scores) => {
+                console.log("New scores:")
+                console.log(new_scores)
 
-            // The desired score hasn't been reached, so a new iteration is required.
-            const variables_to_improve = mes_reaching_algorithm_step(mes_reaching_output_tuple,
-                mes_reaching_desired_score, cleaner.current.get_vars_truth_values());
-            setMesReachingVariablesToImprove(variables_to_improve.slice(1));
-            setCurrentlyCleanedVar(variables_to_improve[0]);
-            setCurrentlyCleanedTuple(var_to_tuple(variables_to_improve[0], input_tables)[1]);
-            setIsUnderlyingSystem(false);
-        });
+                setMesReachingIsFetchingScore(false);
+                if (Math.max(...new_scores) <= mes_reaching_desired_score) {
+                    on_cleaning_finish();
+                    return;
+                }
+
+                console.log(`Max MES (${Math.max(...new_scores)}) > mes_reaching_desired_score(${mes_reaching_desired_score})`)
+
+                // The desired score hasn't been reached, so a new iteration is required.
+                const filtered = mes_reaching_output_tuples.filter((t, i) => new_scores[i] > mes_reaching_desired_score)
+                console.log("Filtered:")
+                console.log(filtered)
+                const filtered_new_scores = new_scores.filter(s => s > mes_reaching_desired_score)
+
+                const variables_to_improve = mes_reaching_algorithm_step(
+                    filtered, filtered_new_scores, cleaner.current.get_vars_truth_values(),
+                    input_probs, mes_reaching_desired_score);
+                console.log("variables_to_improve:")
+                console.log(variables_to_improve)
+                if (mes_reaching_remaining_cost < variables_to_improve.length) {
+                    console.log(`mes_reaching_remaining_cost < variables_to_improve.length: ${mes_reaching_remaining_cost} < ${variables_to_improve.length}`)
+                    on_cleaning_finish();
+                    return;
+                }
+
+                setMesReachingRemainingCost(mes_reaching_remaining_cost - variables_to_improve.length);
+                console.log(`Updating the remaining cost from ${mes_reaching_remaining_cost} to ${mes_reaching_remaining_cost - variables_to_improve.length}`)
+                setMesReachingVariablesToImprove(variables_to_improve.slice(1));
+                setCurrentlyCleanedVar(variables_to_improve[0]);
+                setCurrentlyCleanedTuple(var_to_tuple(variables_to_improve[0], db_name)[1]);
+                setIsUnderlyingSystem(false);
+            });
     }
+
+    const search_params = useSearchParams();
+    const user_query = search_params.get(QUERY_INPUT_ID);
+    const db_name = search_params.get(DB_NAME_ID);
+    const max_basic_prob = parseFloat(search_params.get(PROB_INPUT_ID));
 
     // Fetch the results.
     useEffect(() => {
-        if (input_tables == null) {
-            return;
-        }
-
         const data_fetch = async () => {
-            let api_res = await fetch(NODE_APP_API_QUERY_RESULTS);
+            const params = new URLSearchParams({
+                "query": user_query,
+                "db_name": db_name,
+            });
+            let api_res = await fetch(`${FLASK_APP_API_QUERY_RESULTS}?${params.toString()}`);
             if (!api_res.ok) {
                 throw new Error('Failed to fetch query results');
             }
             const api_res_json = await api_res.json();
 
             cleaner.current = new DummyCleaner(api_res_json.tuples);
+            if (db_name === 'nell') {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', `${FLASK_APP_API_CLEANED_DB}`, false);
+                xhr.send();
+                if (xhr.status !== 200) {
+                    throw new Error(`xhr.status ${xhr.status}`);
+                }
+
+                const returnedJson = JSON.parse(xhr.response);
+                for (const l of returnedJson['labels']) {
+                    cleaner.current.set_var_truth_value(l['variable'], l['label'], false)
+                }
+            }
+
             update_next_cleaning_step();
 
             setQueryResults(api_res_json.tuples);
@@ -220,10 +248,11 @@ export default function Page() {
         }
 
         data_fetch();
-    }, [input_tables]);
+    }, []);
 
     function on_classify(classification) {
         cleaner.current.set_var_truth_value(currently_cleaned_var, classification);
+        console.log(`Setting ${currently_cleaned_var} to ${classification}`)
         setClassificationsCount(classifications_count + 1);
 
         if (is_mes_reaching_algorithm_running) {
@@ -240,7 +269,7 @@ export default function Page() {
 
         setCleaningState(false);
         setCurrentlyCleanedVar(input_tuple.variable);
-        setCurrentlyCleanedTuple(var_to_tuple(input_tuple.variable, input_tables)[1]);
+        setCurrentlyCleanedTuple(var_to_tuple(input_tuple.variable, db_name)[1]);
         setInputTupleToImprove(null);
         setOutputTupleForDetails(null);
         setIsUnderlyingSystem(false);
@@ -256,37 +285,70 @@ export default function Page() {
                 REACH_MES_SCORE_MODAL_ID));
         }
 
-        output_tuple_details_modal.hide();
         reach_mes_score_modal.show();
     }
 
-    function on_click_start_mes_algorithm(desired_mes_score) {
-        const variables_to_improve = mes_reaching_algorithm_step(output_tuple_for_details,
-            desired_mes_score, assignment);
+    function on_click_start_mes_algorithm(output_tuples, desired_mes_score, maximal_cost) {
+        console.log("selected output tuples:")
+        console.log(selected_output_tuples)
+
+        if (isNaN(maximal_cost)) {
+            maximal_cost = Number.POSITIVE_INFINITY;
+        }
+        const filtered = output_tuples.filter(t => t.mes_score > desired_mes_score)
+        console.log("Filtered:")
+        console.log(filtered)
+        const variables_to_improve = mes_reaching_algorithm_step(
+            filtered,
+            filtered.map(t => t.mes_score),
+            assignment,
+            input_probs,
+            desired_mes_score);
+        console.log("variables_to_improve:")
+        console.log(variables_to_improve)
+
+        if (maximal_cost < variables_to_improve.length) {
+            console.log(`maximal_cost < variables_to_improve.length: ${maximal_cost} < ${variables_to_improve.length}`)
+            reach_mes_score_modal.hide();
+            return;
+        }
+
         setMesReachingVariablesToImprove(variables_to_improve.slice(1));
-        setMesReachingOutputTuple(output_tuple_for_details);
+        setMesReachingOutputTuples(selected_output_tuples);
         setMesReachingDesiredScore(desired_mes_score);
+        setMesReachingRemainingCost(maximal_cost - variables_to_improve.length);
+        console.log(`Updating the remaining cost to ${maximal_cost - variables_to_improve.length}`)
         setCleaningState(false);
         setIsMesReachingAlgorithmRunning(true);
         setCurrentlyCleanedVar(variables_to_improve[0]);
-        setCurrentlyCleanedTuple(var_to_tuple(variables_to_improve[0], input_tables)[1]);
+        setCurrentlyCleanedTuple(var_to_tuple(variables_to_improve[0], db_name)[1]);
         setInputTupleToImprove(null);
         setOutputTupleForDetails(null);
         setIsUnderlyingSystem(false);
+        setSelectedOutputTuples([])
 
         reach_mes_score_modal.hide();
     }
 
-    const search_params = useSearchParams();
-    const user_query = search_params.get(QUERY_INPUT_ID);
-    const max_basic_prob = parseFloat(search_params.get(PROB_INPUT_ID));
+    function add_output_tuple(tuple) {
+        setSelectedOutputTuples([
+            ...selected_output_tuples,
+            tuple
+        ]);
+    }
+
+    function remove_output_tuple(tuple) {
+        setSelectedOutputTuples(selected_output_tuples.filter(t => t.id !== tuple.id));
+    }
+
+    const is_loading = query_results == null ||
+        (!cleaning_state && currently_cleaned_tuple == null) ||
+        mes_reaching_is_fetching_score;
 
     return (
         <>
             <InputSummary userQuery={user_query}/>
-            {(input_tables == null || query_results == null ||
-                (!cleaning_state && currently_cleaned_tuple == null) ||
-                mes_reaching_is_fetching_score) ?
+            {is_loading ?
                 // If the data is not ready yet, display a spinner.
                 LOADING_SPINNER :
                 <main className="w-75">
@@ -305,17 +367,19 @@ export default function Page() {
                                           classificationsCount={classifications_count}
                                           assignment={assignment}
                                           inputProbs={input_probs}
-                                          onClickOutputTuple={on_click_output_tuple}/>
+                                          onClickOutputTuple={on_click_output_tuple}
+                                          onClickReachMesScore={on_click_reach_mes_score}
+                                          addOutputTuple={add_output_tuple}
+                                          removeOutputTuple={remove_output_tuple}/>
                         </>
                     }
                 </main>
             }
-            <OutputTupleDetails outputTuple={output_tuple_for_details}
-                                inputTables={input_tables}
+            <OutputTupleDetails dbName={db_name}
+                                outputTuple={output_tuple_for_details}
                                 assignment={assignment}
                                 inputProbs={input_probs}
-                                onClickInputTuple={on_click_input_tuple}
-                                onClickReachMesScore={on_click_reach_mes_score}/>
+                                onClickInputTuple={on_click_input_tuple}/>
             <ImproveInputTupleProb inputTuple={input_tuple_to_improve}
                                    inputProbs={input_probs}
                                    isClassified={is_input_tuple_classified}
@@ -324,10 +388,14 @@ export default function Page() {
                                            prob)
                                    }}/>
             <ReachMesScoreModal
-                outputTuple={output_tuple_for_details}
-                currentScore={output_tuple_for_details != null ?
-                    output_tuple_for_details.mes_score : 0}
+                outputTuples={selected_output_tuples}
                 onClickStartMesAlgorithm={on_click_start_mes_algorithm}/>
+            <div className="btn-group ms-3">
+                <button type="button" className="btn btn-dark" onClick={() => {
+                    window.location.assign("//" + window.location.host);
+                }}>Reset
+                </button>
+            </div>
         </>
     );
 }

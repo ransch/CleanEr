@@ -1,52 +1,43 @@
-import typing
 import json
-import sympy
-from sympy.core import basic, symbol
-from sympy.parsing import sympy_parser
+
+from oracle_mistakes.dnf_formula import DnfFormula, Assignment
+from oracle_mistakes.utils import VarProbabilities
 
 
-def parse_formula_param(formula_param: str) -> basic.Basic:
+def parse_formula_param(formula_param: str) -> DnfFormula:
     """
-    Convert a formula parameter (represented in JSON) to a SymPy object.
-    For example, `[["a_0", "r_0", "e_0"], ["a_0", "r_1", "e_1"], ["a_0", "r_2", "e_3"]]` will be
-    converted to `(a_0 & r_0 & e_0) | (a_0 & r_1 & e_1) | (a_0 & r_2 & e_3)`.
+    Convert a formula parameter (represented in JSON) to a `DnfFormula` instance.
 
     Args:
-        formula_param: A formula parameter
+        formula_param: A formula parameter, e.g. `[["a_0", "r_0", "e_0"], ["a_0", "r_1", "e_1"], ["a_0", "r_2", "e_3"]]`.
 
     Returns:
-        A SymPy expression from the given formula parameter.
+        A `DnfFormula` instance representing the given formula parameter.
     """
-    dictionary = json.loads(formula_param)
-    formula_str = ' | '.join(f'({" & ".join(term)})' for term in dictionary)
-    return sympy_parser.parse_expr(formula_str, evaluate=False)
+    return DnfFormula(json.loads(formula_param))
 
 
-def json_to_symbols_dict(json_str: str) -> typing.Dict[symbol.Symbol, typing.Any]:
+def parse_assignment_param(assignment_param: str) -> Assignment:
     """
-    Convert a json whose keys represent symbols to a dictionary whose keys are SymPy symbols.
+    Convert a probs parameter (represented in JSON) to an `Assignment` instance.
 
     Args:
-        json_str: A json string
+        assignment_param: An assignment parameter, represented in JSON.
 
     Returns:
-        A dictionary that represents the given json, whose keys are SymPy symbols.
+        An `Assignment` instance representing the given assignment parameter.
     """
-    dictionary = json.loads(json_str)
-    return {sympy.Symbol(var): truth_value for (var, truth_value) in dictionary.items()}
+    return json.loads(assignment_param)
 
 
-def parse_probs_param(probs_param: str) -> typing.Dict[symbol.Symbol, float]:
+def parse_probs_param(probs_param: str) -> VarProbabilities:
     """
-    Convert a probs parameter (represented in JSON) to a dictionary whose keys are SymPy symbols and
-    its values are floats.
+    Convert a probs parameter (represented in JSON) to a `VarProbabilities` instance.
 
     Args:
-        probs_param: A probs parameter, represented in JSON
+        probs_param: A probs parameter, represented in JSON.
 
     Returns:
-        A dictionary that represents the given parameter, whose keys are SymPy symbols and its
-        values are floats.
+        A `VarProbabilities` instance representing the given probabilities parameter.
     """
-    dictionary = json_to_symbols_dict(probs_param)
-    return {var: float(prob) for var, prob in dictionary.items()}
+    return json.loads(probs_param)

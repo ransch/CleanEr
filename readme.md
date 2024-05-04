@@ -13,8 +13,7 @@ our framework and its key features.
 1. Build the Python implementation of the algorithms by running `poetry build` from `impl/`.
 2. Install the dependencies of the Flask server by running `poetry install --no-root` from
    `flask-app/`.
-3. Start the Flask server by running `poetry run flask --app ./flask_app/app.py run` from
-   `flask-app/`.
+3. Start the Flask server by running `poetry run python3 flask_app/app.py` from `flask-app/`.
 4. Install the dependencies of the Node.js server by running `npm install` from `react-app/`.
-5. Start the Node.js server by running `npm run dev` from `react-app/`.
+5. Start the Node.js server by running `npm run build && npm run start` from `react-app/`.
 

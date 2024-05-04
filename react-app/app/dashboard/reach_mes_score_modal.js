@@ -1,9 +1,4 @@
-import {
-    PROBS_STEP,
-    MIN_MAX_PROB,
-    DIGITS_AFTER_POINT,
-    capitalize_first_letter
-} from "/app/{utils}/utils";
+import {num_to_str, PROBS_STEP} from "/app/{utils}/utils";
 
 /**
  * @brief The ID of the modal for starting an algorithm for achieving a MES value.
@@ -16,14 +11,20 @@ export const REACH_MES_SCORE_MODAL_ID = "reach_mes_score_modal";
 const DESIRED_MES_SCORE_INPUT_ID = "desired-mes-score-input";
 
 /**
+ * @brief The ID of the input in which the user enters the maximal cost.
+ */
+const MAXIMAL_COST_INPUT_ID = "maximal-cost-input";
+
+/**
  * @brief A modal for starting an algorithm for achieving a MES value.
  *
- * @param  outputTuple               The selected output tuple
- * @param  currentScore              The current MES value of the selected output tuple
+ * @param  outputTuples              The selected output tuple
  * @param  onClickStartMesAlgorithm  A callback that is called when the user starts the algorithm
  */
-export function ReachMesScoreModal({outputTuple, currentScore, onClickStartMesAlgorithm}) {
-    const max_desired_score = currentScore !== undefined ? currentScore - PROBS_STEP : 0;
+export function ReachMesScoreModal({outputTuples, onClickStartMesAlgorithm}) {
+    const max_mes = outputTuples.length === 0 ? 0 : Math.max(...outputTuples.map(
+        (t) => t.mes_score
+    ))
 
     return (
         <div className="modal fade" id={REACH_MES_SCORE_MODAL_ID}>
@@ -35,31 +36,9 @@ export function ReachMesScoreModal({outputTuple, currentScore, onClickStartMesAl
                     </div>
                     <div className="modal-body">
                         <h2 className="fs-3">Reach Desired MES</h2>
-                        <div className="row">
-                            <table className={`table table-hover align-middle text-center`}>
-                                <thead className="align-middle">
-                                <tr>
-                                    {outputTuple != null && Object.entries(outputTuple.values).map(
-                                        (pair, index) =>
-                                            <th key={`output_tuple_table_field_${index}`}
-                                                scope="col">{capitalize_first_letter(pair[0])}</th>
-                                    )}
-                                </tr>
-                                </thead>
-                                <tbody className="table-group-divider">
-                                <tr key={`output_tuple_table_values`}>
-                                    {outputTuple != null && Object.entries(outputTuple.values).map(
-                                        (pair, value_index) =>
-                                            <td key={`output_tuple_table_values_${value_index}`}>
-                                                {pair[1]}
-                                            </td>
-                                    )}
-                                </tr>
-                                </tbody>
-                            </table>
-                        </div>
                         <div className="text-center mb-3">
-                            Current MES value: {currentScore.toFixed(DIGITS_AFTER_POINT)}
+                            Current maximal MES
+                            value: {num_to_str(max_mes)}
                         </div>
                         <div className="row">
                             <label
@@ -70,16 +49,30 @@ export function ReachMesScoreModal({outputTuple, currentScore, onClickStartMesAl
                             </label>
                             <div className="col">
                                 <input type="number" className="form-control"
-                                       id={DESIRED_MES_SCORE_INPUT_ID} defaultValue={MIN_MAX_PROB}
-                                       min={MIN_MAX_PROB} max={max_desired_score}
+                                       id={DESIRED_MES_SCORE_INPUT_ID} defaultValue={0}
                                        step={PROBS_STEP} autoComplete="off"/>
+                            </div>
+                        </div>
+                        <div className="row mt-1">
+                            <label
+                                className="form-label m-0 p-0 col d-flex flex-column
+                                justify-content-center text-end"
+                                htmlFor={MAXIMAL_COST_INPUT_ID}>
+                                Maximal cost
+                            </label>
+                            <div className="col">
+                                <input type="text" className="form-control"
+                                       id={MAXIMAL_COST_INPUT_ID} defaultValue="-"
+                                       autoComplete="off"/>
                             </div>
                         </div>
                     </div>
                     <div className="modal-footer">
                         <button type="button" className="btn btn-primary" onClick={() => {
-                            onClickStartMesAlgorithm(parseFloat(
-                                document.getElementById(DESIRED_MES_SCORE_INPUT_ID).value));
+                            onClickStartMesAlgorithm(
+                                outputTuples,
+                                parseFloat(document.getElementById(DESIRED_MES_SCORE_INPUT_ID).value),
+                                parseFloat(document.getElementById(MAXIMAL_COST_INPUT_ID).value));
                         }}>
                             Start algorithm
                         </button>

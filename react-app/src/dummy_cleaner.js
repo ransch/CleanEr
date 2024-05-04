@@ -63,8 +63,8 @@ export class DummyCleaner {
      * @param  variable     A variable
      * @param  truth_value  The variable's truth value
      */
-    set_var_truth_value(variable, truth_value) {
-        if (!this.#vars_truth_values.has(variable)) {
+    set_var_truth_value(variable, truth_value, check=true) {
+        if (check && !this.#vars_truth_values.has(variable)) {
             throw new Error("The given variable does not exist");
         }
 

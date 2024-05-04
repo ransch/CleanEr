@@ -1,9 +1,9 @@
 import {
-    DIGITS_AFTER_POINT,
-    PROBS_STEP,
-    MIN_MAX_PROB,
+    capitalize_first_letter,
     MAX_MAX_PROB,
-    capitalize_first_letter
+    MIN_MAX_PROB,
+    num_to_str,
+    PROBS_STEP
 } from "/app/{utils}/utils";
 import styles from '/style/dashboard/improve_input_tuple_prob.module.css';
 
@@ -67,7 +67,7 @@ export function ImproveInputTupleProb({inputTuple, inputProbs, isClassified, upd
                         </div>
                         {isClassified &&
                             <div className={`row mb-2 ${styles.current_prob}`}>
-                                Current probability: {current_prob.toFixed(DIGITS_AFTER_POINT)}
+                                Current probability: {num_to_str(current_prob)}
                             </div>}
                         <div className="row">
                             <label

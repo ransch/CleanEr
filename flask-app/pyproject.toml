@@ -6,11 +6,14 @@ version = "0.1.0"
 packages = [{include = "flask_app"}]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.12"
-flask = "^2.3.2"
-sympy = "^1.11.1"
+python = ">=3.12,<3.13"
+flask = "~3"
+flask-cors = "~4"
+psycopg = {extras = ["binary", "pool"], version = "~3"}
+pyparsing = "~3"
+waitress = "~3"
+pandas = "~2"
 oracle-mistakes = {path = "../impl/dist/oracle_mistakes-0.1.0.tar.gz"}
-flask-cors = "^3.0.10"
 
 [build-system]
 requires = ["poetry-core"]

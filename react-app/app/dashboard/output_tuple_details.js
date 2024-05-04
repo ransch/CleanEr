@@ -1,12 +1,13 @@
 "use client";
 
-import {extract_vars_from_provenance, var_to_tuple, is_variable_crucial} from "/src/utils";
+import {extract_vars_from_provenance, is_variable_crucial, var_to_tuple} from "/src/utils";
 import {
     capitalize_first_letter,
-    FLASK_APP_API_IS_VAR_RISKY_URL,
+    DIGITS_AFTER_POINT,
+    FLASK_APP_API_IS_VAR_RISKY_URL, num_to_str,
 } from "/app/{utils}/utils";
 import styles from '/style/dashboard/output_tuple_details.module.css';
-import {useState, useEffect} from 'react'
+import {useEffect, useState} from 'react'
 
 /**
  * @brief The ID of the modal that shows details about an output tuple.
@@ -41,40 +42,41 @@ const UNCLASSIFIED_VAR_ICON = <i className="bi bi-question-circle"></i>;
 /**
  * @brief A component that shows the input tuples related to an output tuple.
  *
+ * @param  dbName               The name of the database
  * @param  outputTuple          An output tuple
- * @param  inputTables          The input tables
  * @param  assignment           The (possible partial) assignment created by the experts
  * @param  inputProbs           The input tuple probabilities
  * @param  onClickInputTuple    A callback that is called when the user clicks on an input tuple
  * @param  showCorrectTuples    Whether correct tuples should be presented
  * @param  showIncorrectTuples  Whether incorrect tuples should be presented
  * @param  showUnknownTuples    Whether tuples whose correctness is unknown should be presented
- * @param  showCrucialTuples    Whether crucial tuples should be presented
- * @param  showRiskyTuples      Whether risky tuples should be presented
+ * @param  crucialTuplesState   Whether crucial tuples should be presented (0 - yes, 1 - only, 2 - no)
+ * @param  riskyTuplesState     Whether risky tuples should be presented (0 - yes, 1 - only, 2 - no)
  */
 function RelatedInputTuples({
+                                dbName,
                                 outputTuple,
-                                inputTables,
                                 assignment,
                                 inputProbs,
                                 onClickInputTuple,
                                 showCorrectTuples,
                                 showIncorrectTuples,
                                 showUnknownTuples,
-                                showCrucialTuples,
-                                showRiskyTuples
+                                crucialTuplesState,
+                                riskyTuplesState
                             }) {
     /**
      * @brief Get the tuples that corresponds to the given variables, grouped by the tables.
      *
      * @param  input_vars  A set of variables
+     * @param  db_name     The name of the database
      *
      * @returns Map An map of sets of input tuples.
      */
-    function input_vars_to_tuples(input_vars) {
+    function input_vars_to_tuples(input_vars, db_name) {
         const ret = new Map();
         for (const input_var of input_vars) {
-            const [table_name, input_tuple] = var_to_tuple(input_var, inputTables);
+            const [table_name, input_tuple] = var_to_tuple(input_var, db_name);
             const new_element = {variable: input_var, tuple: input_tuple};
 
             if (ret.has(table_name)) {
@@ -92,13 +94,24 @@ function RelatedInputTuples({
      *
      * @param  input_var          The input variable presented in the row
      * @param  crucial_variables  The set of crucial variables
-     * @param  risky_vars         The set of risky variables
+     * @param  risky_variables    The set of risky variables
      *
      * @returns string The classname of the table row that presents the given input variable.
      */
-    function get_row_classname(input_var, crucial_variables, risky_vars) {
-        if ((crucial_variables.has(input_var) && !showCrucialTuples) ||
-            (risky_vars.has(input_var) && !showRiskyTuples)) {
+    function get_row_classname(input_var, crucial_variables, risky_variables) {
+        if (!crucial_variables.has(input_var) && crucialTuplesState === 1) {
+            return styles.hidden_tuple;
+        }
+
+        if (!risky_variables.has(input_var) && riskyTuplesState === 1) {
+            return styles.hidden_tuple;
+        }
+
+        if (crucial_variables.has(input_var) && crucialTuplesState === 2) {
+            return styles.hidden_tuple;
+        }
+
+        if (risky_variables.has(input_var) && riskyTuplesState === 2) {
             return styles.hidden_tuple;
         }
 
@@ -135,8 +148,8 @@ function RelatedInputTuples({
     // The input variables in the output tuple's provenance.
     const input_vars = extract_vars_from_provenance(outputTuple.provenance);
     // The tuples that correspond to the variables in input_vars.
-    const input_tuples = input_vars_to_tuples(input_vars);
-    // The set of risky variables for precision.
+    const input_tuples = input_vars_to_tuples(input_vars, dbName);
+    // The set of risky variables.
     const [risky_vars, setRiskyVars] = useState(new Set());
     // The set of crucial variables.
     let crucial_variables = new Set();
@@ -154,10 +167,12 @@ function RelatedInputTuples({
             let probs = {};
             let are_all_zeros = true;
             for (const variable of input_vars) {
-                assignment_object[variable] = assignment.get(variable)
-                probs[variable] = inputProbs.get(variable);
-                if (probs[variable] !== 0) {
-                    are_all_zeros = false;
+                if (assignment.has(variable)) {
+                    assignment_object[variable] = assignment.get(variable)
+                    probs[variable] = inputProbs.get(variable);
+                    if (probs[variable] !== 0) {
+                        are_all_zeros = false;
+                    }
                 }
             }
 
@@ -191,7 +206,7 @@ function RelatedInputTuples({
         }
 
         data_fetch();
-    }, [outputTuple, inputTables, assignment, inputProbs]);
+    }, [outputTuple, assignment, inputProbs]);
 
     return (<>{[...input_tuples.entries()].map(([table_name, tuples]) =>
             <div key={table_name}>
@@ -234,7 +249,7 @@ function RelatedInputTuples({
                             )}
                             <td key={`${table_name}_${tuple_index}_prob`}>
                                 {assignment.has(element.variable) &&
-                                    inputProbs.get(element.variable)}
+                                    num_to_str(inputProbs.get(element.variable))}
                             </td>
                         </tr>
                     )}
@@ -248,22 +263,19 @@ function RelatedInputTuples({
 /**
  * @brief A component that shows details about an output tuple.
  *
+ * @param  dbName                The name of the database
  * @param  outputTuple           An output tuple
- * @param  inputTables           The input tables
  * @param  assignment            The (possible partial) assignment created by the experts
  * @param  inputProbs            The input tuple probabilities
  * @param  onClickInputTuple     A callback that is called when the user clicks on an input tuple
  *                               (related to an output tuple)
- * @param  onClickReachMesScore  A callback that is called when the user clicks on the button of
- *                               "Reach MES value"
  */
 export function OutputTupleDetails({
+                                       dbName,
                                        outputTuple,
-                                       inputTables,
                                        assignment,
                                        inputProbs,
                                        onClickInputTuple,
-                                       onClickReachMesScore
                                    }) {
     // Whether correct tuples should be presented.
     const [show_correct_tuples, showCorrectTuples] = useState(true);
@@ -272,9 +284,9 @@ export function OutputTupleDetails({
     // Whether tuples whose correctness is unknown should be presented.
     const [show_unknown_tuples, showUnknownTuples] = useState(true);
     // Whether crucial tuples should be presented.
-    const [show_crucial_tuples, showCrucialTuples] = useState(true);
+    const [crucial_tuples_state, setCrucialTuplesState] = useState(0);
     // Whether risky tuples should be presented.
-    const [show_risky_tuples, showRiskyTuples] = useState(true);
+    const [risky_tuples_state, setRiskyTuplesState] = useState(0);
 
     /**
      * @brief The click event handler of the button that toggles correct tuples.
@@ -299,70 +311,70 @@ export function OutputTupleDetails({
     }
 
     /**
-     * @brief The click event handler of the button that toggles crucial tuples.
+     * @brief The click event handler of the button that controls crucial tuples.
      */
-    function on_click_toggle_crucial_tuples() {
-        showCrucialTuples(!show_crucial_tuples);
+    function on_click_crucial_tuples() {
+        setCrucialTuplesState((crucial_tuples_state + 1) % 3);
     }
 
     /**
-     * @brief The click event handler of the button that toggles risky tuples.
+     * @brief The click event handler of the button that controls risky tuples.
      */
-    function on_click_toggle_risky_tuples() {
-        showRiskyTuples(!show_risky_tuples);
+    function on_click_risky_tuples() {
+        setRiskyTuplesState((risky_tuples_state + 1) % 3);
     }
 
     return (
         <div className="modal fade" id={OUTPUT_TUPLE_DETAILS_ID}>
-            <div className="modal-dialog modal-dialog-scrollable">
+            <div className="modal-dialog modal-dialog-scrollable modal-lg">
                 <div className="modal-content">
                     <div className="modal-header">
                         <button type="button" className="btn-close" data-bs-dismiss="modal">
                         </button>
                     </div>
                     <div className="modal-body">
-                        {(outputTuple != null && inputTables != null && assignment != null &&
+                        {(outputTuple != null && assignment != null &&
                             inputProbs != null) && <>
                             <h2 className="fs-3">Related input tuples</h2>
                             <section className={styles.icons_meaning}>
+                                <div>
                                 <span onClick={on_click_toggle_correct_tuples}
                                       className={!show_correct_tuples ? styles.hidden_label : ""}>
                                     {CORRECT_VAR_ICON} - correct
                                 </span>
-                                <span onClick={on_click_toggle_incorrect_tuples}
-                                      className={!show_incorrect_tuples ? styles.hidden_label : ""}>
+                                    <span onClick={on_click_toggle_incorrect_tuples}
+                                          className={!show_incorrect_tuples ? styles.hidden_label : ""}>
                                     {INCORRECT_VAR_ICON} - incorrect
                                 </span>
-                                <span onClick={on_click_toggle_unknown_tuples}
-                                      className={!show_unknown_tuples ? styles.hidden_label : ""}>
+                                    <span onClick={on_click_toggle_unknown_tuples}
+                                          className={!show_unknown_tuples ? styles.hidden_label : ""}>
                                     {UNCLASSIFIED_VAR_ICON} - unknown correctness
                                 </span>
-                                <span onClick={on_click_toggle_crucial_tuples}
-                                      className={!show_crucial_tuples ? styles.hidden_label : ""}>
+                                </div>
+                                <div>
+                                <span onClick={on_click_crucial_tuples}
+                                      className={crucial_tuples_state === 0 ? "" : crucial_tuples_state === 1 ? styles.only_label : styles.hidden_label}>
                                     {CRUCIAL_VAR_ICON} - crucial
                                 </span>
-                                <span onClick={on_click_toggle_risky_tuples}
-                                      className={!show_risky_tuples ? styles.hidden_label : ""}>
+                                    <span onClick={on_click_risky_tuples}
+                                          className={risky_tuples_state === 0 ? "" : risky_tuples_state === 1 ? styles.only_label : styles.hidden_label}>
                                     {RISKY_VAR_ICON} - risky
                                 </span>
+                                </div>
                             </section>
-                            <RelatedInputTuples outputTuple={outputTuple}
-                                                inputTables={inputTables}
+                            <RelatedInputTuples dbName={dbName}
+                                                outputTuple={outputTuple}
                                                 assignment={assignment}
                                                 inputProbs={inputProbs}
                                                 onClickInputTuple={onClickInputTuple}
                                                 showCorrectTuples={show_correct_tuples}
                                                 showIncorrectTuples={show_incorrect_tuples}
                                                 showUnknownTuples={show_unknown_tuples}
-                                                showCrucialTuples={show_crucial_tuples}
-                                                showRiskyTuples={show_risky_tuples}/>
+                                                crucialTuplesState={crucial_tuples_state}
+                                                riskyTuplesState={risky_tuples_state}/>
                         </>}
                     </div>
                     <div className="modal-footer">
-                        <button type="button" className="btn btn-primary"
-                                onClick={onClickReachMesScore}>
-                            Reach MES value
-                        </button>
                         <button type="button" className="btn btn-secondary"
                                 data-bs-dismiss="modal">
                             Close

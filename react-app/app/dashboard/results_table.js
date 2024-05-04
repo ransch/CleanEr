@@ -5,9 +5,9 @@ import {
     capitalize_first_letter,
     fetch_mes_score,
     LOADING_SPINNER,
-    DIGITS_AFTER_POINT
+    num_to_str
 } from "/app/{utils}/utils";
-import {useState, useEffect} from 'react'
+import {useEffect, useState} from 'react'
 
 /**
  * @brief Convert output tuples to table rows.
@@ -18,10 +18,14 @@ import {useState, useEffect} from 'react'
  * @param  previous_tuples        The previous tuples of the opposite classification
  * @param  tuples_id              An id of the given tuples
  * @param  on_click_output_tuple  A callback that is called when the user clicks on an output tuple
+ * @param  add_output_tuple       A callback that is called when the user selects an output tuple
+ * @param  remove_output_tuple    A callback that is called when the user removes the selection of
+ *                                an output tuple
  * @param  classname              The classname field of each cell
  */
 function _tuples_to_rows(sorting_order, table_columns, tuples, previous_tuples, tuples_id,
-                         on_click_output_tuple, classname = "") {
+                         on_click_output_tuple, add_output_tuple, remove_output_tuple,
+                         classname = "") {
     let sorted_tuples = [...tuples]
     sorted_tuples.sort((a, b) =>
         (sorting_order ? b.mes_score - a.mes_score : a.mes_score - b.mes_score));
@@ -30,13 +34,26 @@ function _tuples_to_rows(sorting_order, table_columns, tuples, previous_tuples, 
         <tr key={`${tuples_id}_${index}`} onClick={() => {
             on_click_output_tuple(tuple)
         }}>
+            <td>
+                <input className={`form-check-input ${styles.checkbox}`} type="checkbox"
+                       onClick={(event) => {
+                           const checked = event.target.checked;
+                           if (checked) {
+                               add_output_tuple(tuple)
+                           } else {
+                               remove_output_tuple(tuple)
+                           }
+
+                           event.stopPropagation();
+                       }}/>
+            </td>
             {table_columns.map(column =>
                 <td key={`${tuples_id}_${index}_${column}`}
                     className={classname}>{tuple.values[column]}</td>
             )}
             <td key={`${tuples_id}_${index}_prob`}
                 className={classname}>
-                {tuple.mes_score.toFixed(DIGITS_AFTER_POINT)}
+                {num_to_str(tuple.mes_score)}
                 {tuple.previous_mes_score !== undefined &&
                     tuple.previous_mes_score < tuple.mes_score &&
                     <i className="bi bi-arrow-up"></i>}
@@ -63,6 +80,7 @@ function TableHeader({sortingOrder, onClickInvertSortingOrder, tableColumns}) {
     return (
         <thead className="align-middle">
         <tr>
+            <th scope="col"></th>
             <th key="output_tuple" scope="col" colSpan={tableColumns.length} className="w-75">
                 Output Tuple
             </th>
@@ -80,6 +98,7 @@ function TableHeader({sortingOrder, onClickInvertSortingOrder, tableColumns}) {
             </th>
         </tr>
         <tr>
+            <th></th>
             {
                 tableColumns.map(column =>
                     <th key={column} scope="col">{capitalize_first_letter(column)}</th>
@@ -102,6 +121,9 @@ function TableHeader({sortingOrder, onClickInvertSortingOrder, tableColumns}) {
  * @param  previousIncorrectResults  The previous incorrect tuples in the results table
  * @param  onClickOutputTuple        A callback that is called when the user clicks on an output
  *                                   tuple
+ * @param  addOutputTuple            A callback that is called when the user selects an output tuple
+ * @param  removeOutputTuple         A callback that is called when the user removes the selection
+ *                                   of an output tuple
  */
 function TableBody({
                        sortingOrder,
@@ -111,15 +133,18 @@ function TableBody({
                        incorrectResults,
                        previousCorrectResults,
                        previousIncorrectResults,
-                       onClickOutputTuple
+                       onClickOutputTuple,
+                       addOutputTuple,
+                       removeOutputTuple,
                    }) {
     return (
         <tbody className="table-group-divider">
         {_tuples_to_rows(sortingOrder, tableColumns, correctResults, previousIncorrectResults,
-            "correct", onClickOutputTuple)}
+            "correct", onClickOutputTuple, addOutputTuple, removeOutputTuple)}
         {showIncorrectTuples &&
             _tuples_to_rows(sortingOrder, tableColumns, incorrectResults, previousCorrectResults,
-                "incorrect", onClickOutputTuple, "bg-dark-subtle")}
+                "incorrect", onClickOutputTuple, addOutputTuple, removeOutputTuple,
+                "bg-dark-subtle")}
         </tbody>
     );
 }
@@ -136,6 +161,11 @@ function TableBody({
  * @param  inputProbs                The input tuple probabilities
  * @param  onClickOutputTuple        A callback that is called when the user clicks on an output
  *                                   tuple
+ * @param  onClickReachMesScore      A callback that is called when the user clicks on the button of
+ *                                   "Reach MES value"
+ * @param  addOutputTuple            A callback that is called when the user selects an output tuple
+ * @param  removeOutputTuple         A callback that is called when the user removes the selection
+ *                                   of an output tuple
  */
 export function ResultsTable({
                                  correctResults,
@@ -145,7 +175,10 @@ export function ResultsTable({
                                  classificationsCount,
                                  assignment,
                                  inputProbs,
-                                 onClickOutputTuple
+                                 onClickOutputTuple,
+                                 onClickReachMesScore,
+                                 addOutputTuple,
+                                 removeOutputTuple,
                              }) {
     // Whether incorrect tuples should be presented.
     const [show_incorrect_tuples, showIncorrectTuples] = useState(false);
@@ -202,7 +235,7 @@ export function ResultsTable({
             LOADING_SPINNER :
             <>
                 <table
-                    className={`table table-hover align-middle text-center w-75 ${styles.table}`}>
+                    className={`table table-hover align-middle text-center w-80 ${styles.table}`}>
                     <TableHeader sortingOrder={sorting_order}
                                  onClickInvertSortingOrder={on_click_invert_sorting_order}
                                  tableColumns={results_table_columns}/>
@@ -213,7 +246,9 @@ export function ResultsTable({
                                incorrectResults={incorrectResults}
                                previousCorrectResults={previousCorrectResults}
                                previousIncorrectResults={previousIncorrectResults}
-                               onClickOutputTuple={onClickOutputTuple}/>
+                               onClickOutputTuple={onClickOutputTuple}
+                               addOutputTuple={addOutputTuple}
+                               removeOutputTuple={removeOutputTuple}/>
                 </table>
                 {incorrectResults.length > 0 ? (
                     <button
@@ -235,8 +270,20 @@ export function ResultsTable({
                         <div><i className="bi bi-arrow-up"></i> - MES value increased</div>
                     </section>
                     <section className="col">
-                        <span className="fw-bold">Total cost so far:
-                        </span> {classificationsCount} classifications
+                        <div className="row">
+                            <div>
+                                <span className="fw-bold">Total cost so far:
+                                </span> {classificationsCount} classifications
+                            </div>
+                        </div>
+                        <div className="row">
+                            <div>
+                                <button type="button" className="btn btn-primary"
+                                        onClick={onClickReachMesScore}>
+                                    Reach MES value
+                                </button>
+                            </div>
+                        </div>
                     </section>
                 </section>
             </>

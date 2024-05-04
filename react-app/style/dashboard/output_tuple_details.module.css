@@ -25,6 +25,10 @@
     cursor: pointer;
 }
 
+.only_label {
+    text-decoration: underline;
+}
+
 .hidden_label {
     text-decoration: line-through;
 }

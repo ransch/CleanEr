@@ -39,7 +39,12 @@ function InputTuple({inputTuple}) {
  * @param  isUnderlyingSystem  Whether the current cleaning step has been requested by the
  *                             underlying cleaning system
  */
-export function ExpertInput({inputTuple, realCorrectness, onClassify, isUnderlyingSystem}) {
+export function ExpertInput({
+                                inputTuple,
+                                realCorrectness,
+                                onClassify,
+                                isUnderlyingSystem
+                            }) {
     return (
         <div className={`pt-3 pb-2 ${styles.experts_panel}`}>
             <h1 className="text-center">Expert input</h1>
@@ -59,9 +64,6 @@ export function ExpertInput({inputTuple, realCorrectness, onClassify, isUnderlyi
                             onClick={() => onClassify(true)}>
                         Correct
                     </button>
-                </div>
-                <div className="btn-group">
-                    <button type="button" className="btn btn-dark">Skip Steps</button>
                 </div>
             </div>
             <div className={`mt-2 ms-2 ${styles.step_source_container}`}>
