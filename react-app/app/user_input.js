@@ -86,10 +86,10 @@ export function UserInput() {
         <form onSubmit={handleSubmit}>
             <div className="row">
                 <label
-                    className="form-label m-0 p-0 col-sm-1 d-flex flex-column justify-content-center
+                    className="form-label m-0 p-0 col-sm-2 d-flex flex-column justify-content-center
                     text-end"
                     htmlFor={DB_NAME_ID}>Database</label>
-                <div className="col-sm-11">
+                <div className="col-sm-10">
                     <select id={DB_NAME_ID} name={DB_NAME_ID} value={selectedDatabase}
                             onChange={e => {
                                 setSelectedDatabase(e.target.value);
@@ -102,10 +102,10 @@ export function UserInput() {
             </div>
             <div className="row">
                 <label
-                    className="form-label m-0 p-0 col-sm-1 d-flex flex-column justify-content-center
+                    className="form-label m-0 p-0 col-sm-2 d-flex flex-column justify-content-center
                     text-end"
-                    htmlFor={QUERY_NAME_ID}>Query</label>
-                <div className="col-sm-11">
+                    htmlFor={QUERY_NAME_ID}>Saved Query</label>
+                <div className="col-sm-10">
                     <select id={QUERY_NAME_ID} name={QUERY_NAME_ID}
                             onChange={e => {
                                 document.getElementById(QUERY_INPUT_ID).value = QUERIES[selectedDatabase][e.target.value];
@@ -120,7 +120,7 @@ export function UserInput() {
                 <label
                     className="form-label m-0 p-0 col-sm-1 d-flex flex-column justify-content-center
                     text-end"
-                    htmlFor={QUERY_INPUT_ID}>SPJU Query</label>
+                    htmlFor={QUERY_INPUT_ID}>Query</label>
                 <div className="col-sm-11">
                     <textarea className={`form-control ${ubuntu_mono.className}`}
                               id={QUERY_INPUT_ID} name={QUERY_INPUT_ID}
