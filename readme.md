@@ -2,8 +2,10 @@
 
 This repository contains a prototype implementation for CleanEr, a generic framework that is used on
 top of existing data cleaning systems and that assists users in identifying the impact of potential
-cleaning errors on query results, and in deciding accordingly whether and how to proceed with the
+cleaning errors on query results, and deciding accordingly whether and how to proceed with the
 cleaning.
+
+The framework has been presented at the ICDE 2024 conference - [https://ieeexplore.ieee.org/abstract/document/10597893](https://ieeexplore.ieee.org/abstract/document/10597893).
 
 You can find screenshots of the different views under `screenshots/`, and watch [a video](demonstration_video.mp4) that demonstrates
 our framework and its key features.
